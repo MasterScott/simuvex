@@ -11,7 +11,7 @@ l = logging.getLogger("simuvex.procedures.libc.strtol")
 class strtol(simuvex.SimProcedure):
 
     @staticmethod
-    def strtol_inner(s, state, region, base, signed):
+    def strtol_inner(s, state, region, base, signed, read_length=None):
         """
         :param s: the string address/offset
         :param state: SimState
@@ -19,6 +19,7 @@ class strtol(simuvex.SimProcedure):
         :param base: the base to use to interpret the number
         note: all numbers may start with +/- and base 16 may start with 0x
         :param signed: boolean, true means the result will be signed, otherwise unsigned
+        :param read_length: int, the number of bytes parsed in strtol
         :return: expression, value, num_bytes
         the returned expression is a symbolic boolean indicating success, value will be set to 0 on failure
         value is the returned value (set to min/max on overflow)
@@ -39,7 +40,7 @@ class strtol(simuvex.SimProcedure):
         possible_num_bytes = []
 
         for prefix in prefixes:
-            condition, value, num_bytes = strtol._load_num_with_prefix(prefix, s, region, state, base, signed)
+            condition, value, num_bytes = strtol._load_num_with_prefix(prefix, s, region, state, base, signed, read_length)
             conditions.append(condition)
             cases.append((condition, value))
             possible_num_bytes.append(num_bytes)
@@ -51,12 +52,13 @@ class strtol(simuvex.SimProcedure):
         return expression, result, num_bytes
 
     @staticmethod
-    def _load_num_with_prefix(prefix, addr, region, state, base, signed):
+    def _load_num_with_prefix(prefix, addr, region, state, base, signed, read_length=None):
         """
         loads a number from addr, and returns a condition that addr must start with the prefix
         """
         length = len(prefix)
-        condition, value, num_bytes = strtol._string_to_int(addr+length, state, region, base, signed)
+        read_length -= length
+        condition, value, num_bytes = strtol._string_to_int(addr+length, state, region, base, signed, read_length)
 
         # the prefix must match
         if len(prefix) > 0:
@@ -70,12 +72,15 @@ class strtol(simuvex.SimProcedure):
         return condition, value, total_num_bytes
 
     @staticmethod
-    def _string_to_int(s, state, region, base, signed):
+    def _string_to_int(s, state, region, base, signed, read_length=None):
         """
         reads values from s and generates the symbolic number that it would equal
         the first char is either a number in the given base, or the result is 0
         expression indicates whether or not it was successful
         """
+
+        # if length wasn't provided, read the maximum bytes
+        length = state.libc.max_strtol_len if read_length == None else read_length
 
         # expression whether or not it was valid at all
         expression, _ = strtol._char_to_val(region.load(s, 1), state, base)
@@ -90,7 +95,7 @@ class strtol(simuvex.SimProcedure):
         conditions = []
 
         # we need all the conditions to hold except the last one to have found a value
-        for i in range(state.libc.max_strtol_len):
+        for i in range(length):
             char = region.load(s + i, 1)
             condition, value = strtol._char_to_val(char, state, base)
 
