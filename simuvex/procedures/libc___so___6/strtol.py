@@ -117,6 +117,7 @@ class strtol(simuvex.SimProcedure):
         # only one of the constraints need to hold
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
         state.add_constraints(state.se.Or(*constraints_num_bytes))
+
         result = state.se.ite_cases(cases, 0)
 
         # overflow check
