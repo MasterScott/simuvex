@@ -57,7 +57,6 @@ class strtol(simuvex.SimProcedure):
         loads a number from addr, and returns a condition that addr must start with the prefix
         """
         length = len(prefix)
-        read_length -= length
         condition, value, num_bytes = strtol._string_to_int(addr+length, state, region, base, signed, read_length)
 
         # the prefix must match
