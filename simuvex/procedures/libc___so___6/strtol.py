@@ -109,14 +109,15 @@ class strtol(simuvex.SimProcedure):
             conditions.append(condition)
 
         # the last one is unterminated, let's ignore it
+        if not cutoff:
+            cases.append((num_bytes == length, current_val))
+            case_constraints = conditions + [num_bytes == length]
+            constraints_num_bytes.append(state.se.And(*case_constraints))
 
         # only one of the constraints need to hold
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
-        if cutoff:
-            state.add_constraints(state.se.Or(*constraints_num_bytes))
-            result = state.se.ite_cases(cases, 0)
-        else:
-            result = current_val
+        state.add_constraints(state.se.Or(*constraints_num_bytes))
+        result = state.se.ite_cases(cases, 0)
 
         # overflow check
         max_bits = state.arch.bits-1 if signed else state.arch.bits
