@@ -148,8 +148,8 @@ class strtol(simuvex.SimProcedure):
             return is_digit, char - min_digit
 
         # handle alphabetic chars
-        max_char_lower = state.se.BVV(chr(ord("a") + base-10), 8)
-        max_char_upper = state.se.BVV(chr(ord("A") + base-10), 8)
+        max_char_lower = state.se.BVV(chr(ord("a") + base-10 - 1), 8)
+        max_char_upper = state.se.BVV(chr(ord("A") + base-10 - 1), 8)
         min_char_lower = state.se.BVV(chr(ord("a")), 8)
         min_char_upper = state.se.BVV(chr(ord("A")), 8)
 
