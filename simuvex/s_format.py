@@ -154,7 +154,7 @@ class FormatString(object):
                         status, i, _ = self.parser._sim_atoi_inner(position, region, base=base, read_length=fmt_spec.length_spec)
                         # increase failed count if we were unable to parse it
                         failed = self.parser.state.se.If(status, failed, failed + 1)
-                        position += 1
+                        position += fmt_spec.length_spec
                     elif fmt_spec.spec_type == 'c':
                         i = region.load(position, 1)
                         i = i.zero_extend(bits - 8)
@@ -162,6 +162,8 @@ class FormatString(object):
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
+                    # TODO: actually determine how big this should be
+                    i = i.Extract(31, 0, i)
                     self.parser.state.memory.store(dest, i, endness=self.parser.state.arch.memory_endness)
 
                 argpos += 1
