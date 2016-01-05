@@ -162,9 +162,7 @@ class FormatString(object):
                     else:
                         raise SimProcedureError("unsupported format spec '%s' in interpret" % fmt_spec.spec_type)
 
-                    # TODO: actually determine how big this should be
-                    i = i.Extract(31, 0, i)
-                    self.parser.state.memory.store(dest, i, endness=self.parser.state.arch.memory_endness)
+                    self.parser.state.memory.store(dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness)
 
                 argpos += 1
 
