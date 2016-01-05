@@ -80,7 +80,8 @@ class strtol(simuvex.SimProcedure):
         """
 
         # if length wasn't provided, read the maximum bytes
-        length = state.libc.max_strtol_len if read_length == None else read_length
+        cutoff = (read_length == None)
+        length = state.libc.max_strtol_len if cutoff else read_length
 
         # expression whether or not it was valid at all
         expression, _ = strtol._char_to_val(region.load(s, 1), state, base)
@@ -112,9 +113,11 @@ class strtol(simuvex.SimProcedure):
 
         # only one of the constraints need to hold
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
-        state.add_constraints(state.se.Or(*constraints_num_bytes))
-
-        result = state.se.ite_cases(cases, 0)
+        if cutoff:
+            state.add_constraints(state.se.Or(*constraints_num_bytes))
+            result = state.se.ite_cases(cases, 0)
+        else:
+            result = current_val
 
         # overflow check
         max_bits = state.arch.bits-1 if signed else state.arch.bits
