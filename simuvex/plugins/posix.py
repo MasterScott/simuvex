@@ -1,12 +1,15 @@
 from collections import namedtuple
 
 from .plugin import SimStatePlugin
+from ..s_errors import SimFileError
 from ..storage.file import SimFile
+from ..storage.socket import SimSocket
 
 import os
 import simuvex
 import logging
 l = logging.getLogger('simuvex.plugins.posix')
+socket_log = logging.getLogger('simuvex.plugins.posix.sockets')
 
 max_fds = 8192
 
@@ -51,12 +54,35 @@ class SimStateSystem(SimStatePlugin):
                 l.debug("Not initializing files...")
 
     #to keep track of sockets
-    def add_socket(self, fd):
-        self.sockets[fd] = self.files[fd]
+    def add_socket(self, preferred_fd=None):
+        """
+        Create a new socket fd with a socket specific send and recv SimFile
+        """
+
+        # Set socket_fd to the lowest available file descriptor
+        socket_fd = self.open('never_used_socket', 'rw')
+
+        # Set the send/recv fd's at the upper end of the scale so both
+        # files and sockets coexist in the lower fd range
+        for send_fd in xrange(max_fds, 0, -1):
+            if send_fd not in self.files and send_fd not in self.sockets:
+                send = self.open('socket_send_{}'.format(socket_fd), 'w', send_fd)
+                break
+
+        for recv_fd in xrange(max_fds, 0, -1):
+            if recv_fd not in self.files and recv_fd not in self.sockets:
+                recv = self.open('socket_recv_{}'.format(socket_fd), 'r', recv_fd)
+                break
+
+        curr_socket = SimSocket(socket_fd, send_fd, recv_fd)
+        self.sockets[socket_fd] = curr_socket
+        socket_log.debug('New socket added - {}'.format(curr_socket))
+        socket_log.debug('Sockets: {}'.format(self.sockets))
+        return socket_fd
 
     #back a file with a pcap
     def back_with_pcap(self, fd):
-        #import ipdb;ipdb.set_trace()
+        # TODO: Handle with new add_socket
         if self.pcap is not None:
             self.get_file(fd).bind_file(self.pcap)
 
@@ -83,8 +109,8 @@ class SimStateSystem(SimStatePlugin):
         if preferred_fd is not None and preferred_fd not in self.files:
             fd = preferred_fd
         else:
-            for fd_ in xrange(0, 8192):
-                if fd_ not in self.files:
+            for fd_ in xrange(0, max_fds):
+                if fd_ not in self.files and fd_ not in self.sockets:
                     fd = fd_
                     break
         if fd is None:
@@ -235,12 +261,8 @@ class SimStateSystem(SimStatePlugin):
         return None
 
     def copy(self):
-        sockets = {}
+        sockets = self.sockets
         files = { fd:f.copy() for fd,f in self.files.iteritems() }
-        for f in self.files:
-            if f in self.sockets:
-                sockets[f] = files[f]
-
         return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
 
     def merge(self, others, merge_flag, flag_values):
@@ -259,6 +281,28 @@ class SimStateSystem(SimStatePlugin):
         return self.merge(others, merge_flag, flag_values)
 
     def dumps(self, fd):
+        if isinstance(fd, SimSocket):
+            socket_result = namedtuple('SocketResult', ['send', 'recv'])
+            try:
+                send = self.dumps(fd.send_fd)
+            except SimFileError as e:
+                if 'no content in file' in str(e):
+                    send = None
+                    pass
+            except:
+                import traceback; traceback.print_exc()
+                
+            try:
+                recv = self.dumps(fd.recv_fd)
+            except SimFileError as e:
+                if 'no content in file' in str(e):
+                    recv = None
+                    pass
+            except:
+                import traceback; traceback.print_exc()
+
+            return socket_result(send, recv)
+
         return self.state.se.any_str(self.get_file(fd).all_bytes())
 
     def dump(self, fd, filename):
@@ -267,10 +311,14 @@ class SimStateSystem(SimStatePlugin):
 
     def get_file(self, fd):
         fd = self.state.make_concrete_int(fd)
-        if fd not in self.files:
+        if fd in self.files:
+            return self.files[fd]
+        elif fd in self.sockets:
+            return self.sockets[fd]
+        else:
             l.warning("Accessing non-existing file with fd %d. Creating a new file.", fd)
             self.open("tmp_%d" % fd, "wr", preferred_fd=fd)
-        return self.files[fd]
+            return self.files[fd]
 
     def _chrootize(self, name):
         '''
