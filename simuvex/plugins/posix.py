@@ -2,6 +2,7 @@ from collections import namedtuple
 
 from .plugin import SimStatePlugin
 from ..storage.file import SimFile
+from ..storage.socket import SimSocket
 
 import os
 import simuvex
@@ -15,6 +16,8 @@ Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
                            'st_gid', 'st_rdev', 'st_size', 'st_blksize',
                            'st_blocks', 'st_atime', 'st_atimensec', 'st_mtime',
                            'st_mtimensec', 'st_ctime', 'st_ctimensec'))
+
+Socket = namedtuple('Socket', ['fd', 'recv_fd', 'send_fd'])
 
 class SimStateSystem(SimStatePlugin):
     #__slots__ = [ 'maximum_symbolic_syscalls', 'files', 'max_length' ]
@@ -56,22 +59,25 @@ class SimStateSystem(SimStatePlugin):
         """
         Create a new socket fd with a socket specific send and recv SimFile
         """
-        socket_fd = self.open('never_accessed_file', 'rw')
+
+        # Set socket_fd to the lowest available file descriptor
+        socket_fd = self.open('never_used_socket', 'rw')
 
         # Set the send/recv fd's at the upper end of the scale so both
         # files and sockets coexist in the lower fd range
-        for send_fd in xrange(8192, 0, -1):
+        for send_fd in xrange(max_fds, 0, -1):
             if send_fd not in self.files and send_fd not in self.sockets:
                 send = self.open('socket_send_{}'.format(socket_fd), 'w', send_fd)
                 break
 
-        for recv_fd in xrange(8192, 0, -1):
+        for recv_fd in xrange(max_fds, 0, -1):
             if recv_fd not in self.files and recv_fd not in self.sockets:
                 recv = self.open('socket_recv_{}'.format(socket_fd), 'r', recv_fd)
                 break
 
-        self.sockets[socket_fd] = {'send': send, 'recv': recv}
-        socket_log.debug('New socket added - fd {}'.format(socket_fd))
+        curr_socket = Socket(socket_fd, send_fd, recv_fd)
+        self.sockets[socket_fd] = curr_socket
+        socket_log.debug('New socket added - {}'.format(curr_socket))
         socket_log.debug('Sockets: {}'.format(self.sockets))
         return socket_fd
 
@@ -104,7 +110,7 @@ class SimStateSystem(SimStatePlugin):
         if preferred_fd is not None and preferred_fd not in self.files:
             fd = preferred_fd
         else:
-            for fd_ in xrange(0, 8192):
+            for fd_ in xrange(0, max_fds):
                 if fd_ not in self.files and fd_ not in self.sockets:
                     fd = fd_
                     break
