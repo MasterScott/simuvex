@@ -2,7 +2,6 @@ from collections import namedtuple
 
 from .plugin import SimStatePlugin
 from ..storage.file import SimFile
-from ..storage.socket import SimSocket
 
 import os
 import simuvex
