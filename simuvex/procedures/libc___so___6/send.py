@@ -1,7 +1,7 @@
 import simuvex
 import logging
 
-logging.getLogger('simuvex.plugins.posix.sockets')
+l = logging.getLogger('simuvex.plugins.posix.sockets')
 
 ######################################
 # send
@@ -16,3 +16,4 @@ class send(simuvex.SimProcedure):
         data = self.state.memory.load(src, length)
         length = self.state.posix.write(send_fd, data, length)
         return length
+
