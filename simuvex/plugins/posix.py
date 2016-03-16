@@ -261,7 +261,7 @@ class SimStateSystem(SimStatePlugin):
         return None
 
     def copy(self):
-        sockets = self.sockets
+        sockets = { fd:s.copy() for fd,s in self.sockets.iteritems() }
         files = { fd:f.copy() for fd,f in self.files.iteritems() }
         return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
 

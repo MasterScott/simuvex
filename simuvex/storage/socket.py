@@ -19,6 +19,9 @@ class SimSocket():
     def send_fd(self):
         return self.send_fd
 
+    def copy(self):
+        return SimSocket(self.fd, self.send_fd, self.recv_fd)
+
     def __str__(self):
         return '<{} fd {} recv {} send {}>'.format(self.__class__.__name__,
                                                    self.fd,
